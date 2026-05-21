@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J.A.R.V.I.S. Core System</title>
+    <style>
+        :root {
+            --theme-color: #00f2ff;
+            --theme-glow: rgba(0, 242, 255, 0.4);
+            --bg-dark: #00060d;
+            --panel-bg: rgba(0, 10, 20, 0.85);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Consolas', 'Courier New', monospace; overflow: hidden; }
+        body { background: var(--bg-dark); color: var(--theme-color); height: 100vh; position: relative; }
+
+        /* Tech HUD Grid Overlay */
+        body::before {
+            content: ''; position: fixed; inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.04));
+            background-size: 100% 4px, 6px 100%; z-index: 10; pointer-events: none;
+        }
+
+        #hud-container {
+            display: grid; grid-template-columns: 1fr; grid-template-rows: auto 1fr auto auto;
+            width: 100vw; height: 100vh; padding: 10px; gap: 10px;
+        }
+
+        /* Desktop Grid Layout Adjustment */
+        @media (min-width: 768px) {
+            #hud-container {
+                grid-template-columns: 320px 1fr 320px; grid-template-rows: 70px 1fr 100px;
+            }
+            header { grid-column: 1 / 4; }
+            footer { grid-column: 1 / 4; }
+        }
+
+        /* Global UI Panels */
+        header {
+            background: var(--panel-bg); border: 1px solid var(--theme-color);
+            display: flex; justify-content: space-between; align-items: center; padding: 12px 20px;
+            box-shadow: 0 0 15px var(--theme-glow);
+        }
+        header h1 { font-size: 14px; letter-spacing: 2px; text-shadow: 0 0 8px var(--theme-color); }
+
+        .sidebar {
+            background: var(--panel-bg); border: 1px solid var(--theme-color); padding: 15px;
+            box-shadow: 0 0 15px var(--theme-glow); display: flex; flex-direction: column; gap: 12px;
+        }
+
+        .viewport {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            position: relative; border: 1px dashed rgba(0, 242, 255, 0.2); min-height: 240px;
+        }
+
+        footer {
+            background: var(--panel-bg); border: 1px solid var(--theme-color);
+            padding: 12px; box-shadow: 0 0 15px var(--theme-glow); display: flex; align-items: center;
+        }
+
+        /* JARVIS CENTRAL CORE VISUALIZER */
+        .jarvis-core-wrapper {
+            position: relative; width: 180px; height: 180px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        @media (min-width: 768px) {
+            .jarvis-core-wrapper { width: 240px; height: 240px; }
+        }
+
+        .core-ring {
+            position: absolute; border: 2px dashed var(--theme-color); border-radius: 50%;
+            filter: drop-shadow(0 0 8px var(--theme-color));
+        }
+        .ring-1 { width: 100%; height: 100%; animation: rotateCW 20s linear infinite; }
+        .ring-2 { width: 80%; height: 80%; border: 3px double var(--theme-color); border-left-color: transparent; border-right-color: transparent; animation: rotateCCW 10s linear infinite; }
+        .ring-3 { width: 55%; height: 55%; border: 1px solid var(--theme-color); animation: pulseGlow 2s ease-in-out infinite; }
+        
+        .core-center {
+            width: 35%; height: 35%; background: var(--theme-color); border-radius: 50%;
+            box-shadow: 0 0 30px 10px var(--theme-color); transition: 0.3s;
+        }
+
+        /* Core State Classes toggled by JS */
+        .jarvis-core-wrapper.listening .ring-1 { border-color: #ff6200; animation-duration: 4s; filter: drop-shadow(0 0 8px #ff6200); }
+        .jarvis-core-wrapper.listening .core-center { background: #ff6200; box-shadow: 0 0 30px 10px #ff6200; }
+        .jarvis-core-wrapper.talking .core-center { transform: scale(1.15); filter: brightness(1.4); }
+
+        /* Data Readouts */
+        .data-line { font-size: 11px; margin-bottom: 6px; line-height: 1.4; }
+        .data-line span { color: #fff; float: right; }
+        .accent-text { color: var(--theme-color); font-weight: bold; }
+
+        #console-stream { width: 100%; font-size: 11px; color: #fff; height: 60px; overflow-y: auto; line-height: 1.5; }
+        @media (min-width: 768px) { #console-stream { height: 100%; font-size: 13px; } }
+        
+        /* Keyframe Animations */
+        @keyframes rotateCW { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes rotateCCW { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
+        @keyframes pulseGlow { 0%, 100__% { transform: scale(1); opacity: 0.4; } 50% { transform: scale(1.06); opacity: 1; } }
+
+        .btn {
+            background: none; border: 1px solid var(--theme-color); color: var(--theme-color);
+            padding: 8px; text-transform: uppercase; cursor: pointer; transition: 0.2s; font-size: 11px; font-weight: bold;
+        }
+        .btn:hover { background: var(--theme-color); color: #000; box-shadow: 0 0 10px var(--theme-color); }
+    </style>
+</head>
+<body>
+
+    <div id="hud-container">
+        <header>
+            <h1>J.A.R.V.I.S. // MOBILE_OS_V8</h1>
+            <div id="sys-status" style="font-size: 11px;">SYS: <span class="accent-text">STANDBY</span></div>
+        </header>
+
+        <div class="sidebar">
+            <h3 style="font-size:12px; border-bottom: 1px solid var(--theme-color); padding-bottom:4px;">DIAGNOSTICS</h3>
+            <div>
+                <div class="data-line">CORE TEMP: <span id="val-temp">41°C</span></div>
+                <div class="data-line">CPU LOAD: <span id="val-load">12%</span></div>
+                <div class="data-line">COGNITIVE NET: <span>ACTIVE</span></div>
+                <div class="data-line">VOICE ENGINE: <span>READY</span></div>
+            </div>
+            <button class="btn" onclick="initializeJarvis()">Initialize Vocal Array</button>
+        </div>
+
+        <div class="viewport">
+            <div class="jarvis-core-wrapper" id="jarvis-core" onclick="startListening()">
+                <div class="core-ring ring-1"></div>
+                <div class="core-ring ring-2"></div>
+                <div class="core-ring ring-3"></div>
+                <div class="core-center"></div>
+            </div>
+            <p id="speech-prompt" style="margin-top: 20px; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; text-align: center;">Tap Core for Voice Link</p>
+        </div>
+
+        <div class="sidebar">
+            <h3 style="font-size:12px; border-bottom: 1px solid var(--theme-color); padding-bottom:4px;">VOCAL TRIGGERS</h3>
+            <div style="font-size: 11px; line-height: 1.8; color:#fff;">
+                • "Hello Jarvis"<br>
+                • "System status report"<br>
+                • "Open YouTube"<br>
+                • "Change theme to red / orange / blue"
+            </div>
+        </div>
+
+        <footer>
+            <div id="console-stream">> System online. Matrix ready for operational uplink...</div>
+        </footer>
+    </div>
+
+    <script>
+        // Speech API Configuration Setup
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        const core = document.getElementById('jarvis-core');
+        const promptText = document.getElementById('speech-prompt');
+        const statusText = document.getElementById('sys-status');
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+            recognition.mobileSelect = true; // Mobile responsiveness handler
+
+            recognition.onstart = () => {
+                core.classList.add('listening');
+                promptText.innerText = "Analyzing audio stream...";
+                statusText.innerHTML = "SYS: <span style='color:#ff6200'>LISTENING</span>";
+            };
+
+            recognition.onspeechend = () => {
+                recognition.stop();
+                core.classList.remove('listening');
+            };
+
+            recognition.onerror = (e) => {
+                core.classList.remove('listening');
+                promptText.innerText = "Voice link suspended";
+                statusText.innerHTML = "SYS: <span class='accent-text'>STANDBY</span>";
+                updateLog("Pipeline Exception: " + e.error);
+            };
+
+            recognition.onresult = (event) => {
+                const speechResult = event.results[0][0].transcript.toLowerCase();
+                updateLog("User Input: " + speechResult);
+                processCommand(speechResult);
+            };
+        } else {
+            updateLog("Warning: Native speech matrix unverified on this browser engine.");
+        }
+
+        // Initialize System Voice Greeting
+        function initializeJarvis() {
+            speak("System fully operational. Browser integrations are established. How may I assist you, operator?");
+        }
+
+        // Trigger Listening Loop
+        function startListening() {
+            if (!recognition) {
+                updateLog("Speech recognition engine unavailable.");
+                return;
+            }
+            try { recognition.start(); } catch(e) { /* Already listening loop catch */ }
+        }
+
+        // Jarvis Speech Synthesis Processor
+        function speak(textOutput) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Flush active audio stream queues
+
+                const utterance = new SpeechSynthesisUtterance(textOutput);
+                utterance.pitch = 0.88; 
+                utterance.rate = 1.05;  
+
+                utterance.onstart = () => {
+                    core.classList.add('talking');
+                    statusText.innerHTML = "SYS: <span style='color:#fff'>SPEAKING</span>";
+                    promptText.innerText = "Processing vocal response...";
+                };
+                utterance.onend = () => {
+                    core.classList.remove('talking');
+                    statusText.innerHTML = "SYS: <span class='accent-text'>STANDBY</span>";
+                    promptText.innerText = "Tap Core for Voice Link";
+                };
+
+                window.speechSynthesis.speak(utterance);
+                updateLog("Jarvis response deployed.");
+            }
+        }
+
+        // Natural Language Processing Logic Engine
+        function processCommand(cmd) {
+            if (cmd.includes('hello') || cmd.includes('jarvis')) {
+                speak("Hello. Structural integrity vectors are completely stable.");
+            } 
+            else if (cmd.includes('status') || cmd.includes('report')) {
+                const randLoad = Math.floor(Math.random() * 35) + 8;
+                document.getElementById('val-load').innerText = randLoad + "%";
+                document.getElementById('val-temp').innerText = "44°C";
+                speak(`Diagnostic metrics verified. System load is tracking at ${randLoad} percent capacity. Hardware thermal output remains optimal.`);
+            } 
+            else if (cmd.includes('open google')) {
+                speak("Redirecting browser framework parameters to Google main servers.");
+                setTimeout(() => window.open('https://www.google.com', '_blank'), 1200);
+            } 
+            else if (cmd.includes('open youtube')) {
+                speak("Establishing data connection pipeline to YouTube feed relays.");
+                setTimeout(() => window.open('https://www.youtube.com', '_blank'), 1200);
+            }
+            else if (cmd.includes('theme') || cmd.includes('change color')) {
+                if (cmd.includes('red')) {
+                    document.documentElement.style.setProperty('--theme-color', '#ff0044');
+                    document.documentElement.style.setProperty('--theme-glow', 'rgba(255,0,68,0.4)');
+                    speak("Color configuration shifted to security vector red.");
+                } else if (cmd.includes('orange')) {
+                    document.documentElement.style.setProperty('--theme-color', '#ff6200');
+                    document.documentElement.style.setProperty('--theme-glow', 'rgba(255,98,0,0.4)');
+                    speak("Interface reconfigured to amber layout profiles.");
+                } else {
+                    document.documentElement.style.setProperty('--theme-color', '#00f2ff');
+                    document.documentElement.style.setProperty('--theme-glow', 'rgba(0,242,255,0.4)');
+                    speak("UI grid restored to standard cyan baseline parameters.");
+                }
+            }
+            else {
+                speak("Vocal input recognized, but executable protocols are undefined for command sequence: " + cmd);
+            }
+        }
+
+        // Terminal Log Streams
+        function updateLog(message) {
+            const stream = document.getElementById('console-stream');
+            const timeStamp = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            stream.innerHTML += `<br>> [${timeStamp}] ${message}`;
+            stream.scrollTop = stream.scrollHeight;
+        }
+    </script>
+</body>
+</html>
